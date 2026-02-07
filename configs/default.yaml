@@ -1,0 +1,81 @@
+# OrbitMM Default Configuration
+# Copy this file to config.yaml and customize for your setup
+
+# Network configuration
+rpc:
+  url: https://api.mainnet-beta.solana.com
+  wsUrl: null  # Optional WebSocket URL for subscriptions
+  commitment: confirmed  # processed | confirmed | finalized
+
+# Wallet management
+wallet:
+  encryption: true
+  encryptionKey: ORBITMM_ENCRYPTION_KEY  # Environment variable name
+  backupPath: ~/.orbitmm/backups
+  autoBackupIntervalMs: 3600000  # 1 hour
+
+# Trading defaults
+trading:
+  defaultSlippageBps: 50  # 0.5%
+  priorityFee: auto  # 'auto' or number (lamports)
+  maxRetries: 3
+  retryDelayMs: 1000
+  maxPriceImpactPct: 5  # Abort if price impact exceeds this
+
+# Priority fee configuration (when priorityFee: auto)
+priorityFee:
+  mode: auto  # auto | fixed
+  percentile: 50  # For auto mode: 50 = median
+  minLamports: 1000  # 0.000001 SOL
+  maxLamports: 1000000  # 0.001 SOL
+  refreshIntervalMs: 10000  # 10 seconds
+
+# Bot/Orchestrator defaults
+orchestrator:
+  maxConcurrentSwaps: 50
+  defaultConfig:
+    minSwapSol: 0.01
+    maxSwapSol: 0.1
+    minIntervalMs: 30000  # 30 seconds
+    maxIntervalMs: 120000  # 2 minutes
+  persistence:
+    enabled: true
+    walPath: ~/.orbitmm/wal
+    snapshotIntervalMs: 300000  # 5 minutes
+
+# Detection module
+detection:
+  enabled: true
+  alertThreshold: 0.7  # 0.0 - 1.0 confidence
+  checkIntervalMs: 60000  # 1 minute
+  lookbackMs: 3600000  # 1 hour
+  webhookUrl: null  # Optional webhook for alerts
+  retention:
+    transactions: 7d
+    alerts: 30d
+    stats: forever
+  storage:
+    maxSizeMb: 1000
+
+# Transparency mode (optional on-chain memo)
+transparency:
+  enabled: false
+  marker: "ORBITMM"  # Memo prefix
+
+# Database configuration
+database:
+  type: sqlite  # sqlite | postgres
+  path: ~/.orbitmm/data.db  # For SQLite
+  # url: postgresql://user:pass@host:5432/orbitmm  # For Postgres
+
+# Logging
+logging:
+  level: info  # debug | info | warn | error
+  format: json  # json | pretty
+  redactSecrets: true
+
+# Metrics (Prometheus)
+metrics:
+  enabled: false
+  port: 9090
+  path: /metrics
