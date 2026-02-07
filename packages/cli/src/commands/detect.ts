@@ -7,14 +7,15 @@
 
 import { Command } from 'commander';
 import { PublicKey, Connection } from '@solana/web3.js';
-// NOTE: These imports will work once the detection module is implemented
-// import {
-//   analyzeToken,
-//   startMonitor,
-//   type AnalysisResult,
-//   type Pattern,
-//   type Alert,
-// } from '@orbitmm/core';
+import {
+  DetectionEngine,
+  type AnalysisReport,
+  type Pattern,
+  type PatternType,
+  type Alert,
+  type Severity,
+  type AlliumConfig,
+} from '@orbitmm/core';
 import {
   colors,
   icons,
@@ -33,58 +34,6 @@ import {
   formatPercent,
 } from '../utils/display.js';
 
-// ============ Placeholder Types ============
-
-type PatternType =
-  | 'wallet_clustering'
-  | 'interval_regularity'
-  | 'size_distribution'
-  | 'coordinated_timing'
-  | 'new_wallet_spam'
-  | 'circular_trading'
-  | 'wash_trading';
-
-interface Pattern {
-  type: PatternType;
-  confidence: number;
-  severity: 'low' | 'medium' | 'high';
-  evidence: Evidence[];
-  detectedAt: number;
-}
-
-interface Evidence {
-  type: string;
-  description: string;
-  data: Record<string, unknown>;
-}
-
-interface AnalysisResult {
-  tokenMint: string;
-  analyzedAt: number;
-  transactionCount: number;
-  timeRange: { start: number; end: number };
-  patterns: Pattern[];
-  overallConfidence: number;
-  recommendation: string;
-}
-
-interface MonitorConfig {
-  tokenMint: string;
-  alertThreshold: number;
-  checkIntervalMs: number;
-  lookbackMs: number;
-}
-
-interface Alert {
-  id: string;
-  timestamp: number;
-  priority: 'low' | 'medium' | 'high' | 'critical';
-  token: { mint: string; symbol?: string };
-  patterns: Pattern[];
-  confidence: number;
-  recommendation: string;
-}
-
 // ============ Helpers ============
 
 function getConnection(): Connection {
@@ -92,7 +41,16 @@ function getConnection(): Connection {
   return new Connection(rpcUrl, 'confirmed');
 }
 
-function formatSeverity(severity: 'low' | 'medium' | 'high'): string {
+function getDetectionEngine(): DetectionEngine {
+  const alliumConfig: AlliumConfig = {
+    apiKey: process.env.ALLIUM_API_KEY ?? '',
+    queryId: process.env.ALLIUM_QUERY_ID,
+  };
+  
+  return new DetectionEngine({ allium: alliumConfig });
+}
+
+function formatSeverity(severity: Severity): string {
   switch (severity) {
     case 'high':
       return colors.error('HIGH');
@@ -123,76 +81,13 @@ function formatPatternType(type: PatternType): string {
   return labels[type] ?? type;
 }
 
-// Mock analysis function until detection module is implemented
-async function mockAnalyzeToken(
-  tokenMint: string,
-  hours: number
-): Promise<AnalysisResult> {
-  // Simulate API delay
-  await new Promise((r) => setTimeout(r, 1500));
-
-  const now = Date.now();
-  const hoursMs = hours * 60 * 60 * 1000;
-
-  // Generate mock patterns
-  const patterns: Pattern[] = [
-    {
-      type: 'interval_regularity',
-      confidence: 0.72,
-      severity: 'high',
-      evidence: [
-        {
-          type: 'statistical',
-          description: 'Transaction intervals show low variance (CV=0.23)',
-          data: { cv: 0.23, mean: 45000, variance: 10350000 },
-        },
-      ],
-      detectedAt: now,
-    },
-    {
-      type: 'coordinated_timing',
-      confidence: 0.58,
-      severity: 'medium',
-      evidence: [
-        {
-          type: 'temporal',
-          description: '4 time windows with 3+ wallets trading within 5 seconds',
-          data: { windowCount: 4 },
-        },
-      ],
-      detectedAt: now,
-    },
-    {
-      type: 'wallet_clustering',
-      confidence: 0.45,
-      severity: 'low',
-      evidence: [
-        {
-          type: 'funding',
-          description: '12 wallets share common funding source',
-          data: { clusterSize: 12, fundingSource: 'mock-funder-address' },
-        },
-      ],
-      detectedAt: now,
-    },
-  ];
-
-  const overallConfidence = Math.max(...patterns.map((p) => p.confidence));
-
-  return {
-    tokenMint,
-    analyzedAt: now,
-    transactionCount: 1247,
-    timeRange: { start: now - hoursMs, end: now },
-    patterns,
-    overallConfidence,
-    recommendation:
-      overallConfidence > 0.7
-        ? 'High likelihood of market manipulation. Exercise extreme caution.'
-        : overallConfidence > 0.5
-          ? 'Some suspicious patterns detected. Proceed with caution.'
-          : 'No significant manipulation patterns detected.',
-  };
+function getRecommendation(score: number): string {
+  if (score > 0.7) {
+    return 'High likelihood of market manipulation. Exercise extreme caution.';
+  } else if (score > 0.5) {
+    return 'Some suspicious patterns detected. Proceed with caution.';
+  }
+  return 'No significant manipulation patterns detected.';
 }
 
 // ============ Commands ============
@@ -240,12 +135,11 @@ export function registerDetectCommands(program: Command): void {
         const spin = spinner('Fetching and analyzing transactions...');
         spin.start();
 
-        // TODO: Replace with actual detection module call
-        // const result = await analyzeToken(connection, new PublicKey(tokenMint), {
-        //   timeRangeMs: hours * 60 * 60 * 1000,
-        //   limit: parseInt(options.limit, 10),
-        // });
-        const result = await mockAnalyzeToken(tokenMint, hours);
+        const engine = getDetectionEngine();
+        const result = await engine.analyzeToken(tokenMint, 'solana', {
+          timeRangeMs: hours * 60 * 60 * 1000,
+          limit: parseInt(options.limit, 10),
+        });
 
         spin.succeed(`Analyzed ${result.transactionCount.toLocaleString()} transactions`);
 
@@ -262,7 +156,7 @@ export function registerDetectCommands(program: Command): void {
           'Transactions analyzed': result.transactionCount.toLocaleString(),
           'Time range': `${formatTime(result.timeRange.start)} — ${formatTime(result.timeRange.end)}`,
           'Patterns detected': result.patterns.length,
-          'Overall confidence': formatConfidence(result.overallConfidence),
+          'Manipulation score': formatConfidence(result.manipulationScore / 100),
         }));
 
         // Patterns table
@@ -308,8 +202,9 @@ export function registerDetectCommands(program: Command): void {
 
         // Recommendation
         newline();
-        const recIcon = result.overallConfidence > 0.7 ? icons.alert : result.overallConfidence > 0.5 ? icons.warning : icons.info;
-        const recColor = result.overallConfidence > 0.7 ? colors.error : result.overallConfidence > 0.5 ? colors.warning : colors.info;
+        const score = result.manipulationScore / 100;
+        const recIcon = score > 0.7 ? icons.alert : score > 0.5 ? icons.warning : icons.info;
+        const recColor = score > 0.7 ? colors.error : score > 0.5 ? colors.warning : colors.info;
         console.log(`${recIcon} ${recColor(result.recommendation)}`);
 
       } catch (err) {
@@ -365,96 +260,63 @@ export function registerDetectCommands(program: Command): void {
         info('Starting monitor... Press Ctrl+C to stop.');
         newline();
 
-        // Monitor loop
-        let checkCount = 0;
+        // Create detection engine and monitor
+        const engine = getDetectionEngine();
         let alertCount = 0;
 
-        const runCheck = async () => {
-          checkCount++;
+        const monitorHandle = engine.monitor(
+          {
+            tokenMint,
+            alertThreshold,
+            checkIntervalMs: intervalSeconds * 1000,
+            lookbackMs: lookbackMinutes * 60 * 1000,
+          },
+          async (alert: Alert) => {
+            alertCount++;
 
-          if (!options.quiet) {
-            process.stdout.write(
-              `${colors.muted(`[${new Date().toLocaleTimeString()}]`)} Checking... `
-            );
-          }
+            newline();
+            console.log(colors.error('═'.repeat(60)));
+            console.log(`${icons.alert} ${colors.error.bold('ALERT')} — Manipulation Detected`);
+            console.log(colors.error('═'.repeat(60)));
+            console.log();
+            console.log(keyValue({
+              'Time': formatTime(alert.timestamp),
+              'Priority': colors.error(alert.priority.toUpperCase()),
+              'Confidence': formatConfidence(alert.confidence),
+              'Patterns': alert.patterns.map((p) => formatPatternType(p.type)).join(', '),
+            }));
+            console.log();
+            console.log(`${icons.warning} ${colors.warning(alert.recommendation)}`);
+            console.log(colors.error('═'.repeat(60)));
+            newline();
 
-          try {
-            // TODO: Replace with actual detection module call
-            const result = await mockAnalyzeToken(tokenMint, lookbackMinutes / 60);
-
-            if (!options.quiet) {
-              console.log(
-                `${result.transactionCount} txs, confidence: ${formatConfidence(result.overallConfidence)}`
-              );
-            }
-
-            // Check for alert
-            if (result.overallConfidence >= alertThreshold) {
-              alertCount++;
-
-              const alert: Alert = {
-                id: `alert-${Date.now()}`,
-                timestamp: Date.now(),
-                priority: result.overallConfidence > 0.85 ? 'critical' : result.overallConfidence > 0.7 ? 'high' : 'medium',
-                token: { mint: tokenMint },
-                patterns: result.patterns,
-                confidence: result.overallConfidence,
-                recommendation: result.recommendation,
-              };
-
-              newline();
-              console.log(colors.error('═'.repeat(60)));
-              console.log(`${icons.alert} ${colors.error.bold('ALERT')} — Manipulation Detected`);
-              console.log(colors.error('═'.repeat(60)));
-              console.log();
-              console.log(keyValue({
-                'Time': formatTime(alert.timestamp),
-                'Priority': colors.error(alert.priority.toUpperCase()),
-                'Confidence': formatConfidence(alert.confidence),
-                'Patterns': alert.patterns.map((p) => formatPatternType(p.type)).join(', '),
-              }));
-              console.log();
-              console.log(`${icons.warning} ${colors.warning(alert.recommendation)}`);
-              console.log(colors.error('═'.repeat(60)));
-              newline();
-
-              // Send webhook if configured
-              if (options.webhook) {
-                try {
-                  await fetch(options.webhook, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(alert),
-                  });
-                  info('Alert sent to webhook');
-                } catch (err) {
-                  warning('Failed to send webhook alert');
-                }
+            // Send webhook if configured
+            if (options.webhook) {
+              try {
+                await fetch(options.webhook, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify(alert),
+                });
+                info('Alert sent to webhook');
+              } catch (err) {
+                warning('Failed to send webhook alert');
               }
             }
-          } catch (err) {
-            if (!options.quiet) {
-              console.log(colors.error('Error during check'));
-            }
           }
-        };
-
-        // Run first check immediately
-        await runCheck();
-
-        // Set up interval
-        const intervalId = setInterval(runCheck, intervalSeconds * 1000);
+        );
 
         // Handle graceful shutdown
         process.on('SIGINT', () => {
-          clearInterval(intervalId);
+          monitorHandle.stop();
+          const stats = monitorHandle.getStats();
           newline();
           header('Monitor Summary');
           console.log();
           console.log(keyValue({
-            'Total checks': checkCount,
+            'Transactions analyzed': stats.transactionsAnalyzed,
             'Alerts triggered': alertCount,
-            'Runtime': formatDuration(checkCount * intervalSeconds * 1000),
+            'Runtime': formatDuration(Date.now() - stats.startedAt),
           }));
           newline();
           info('Monitor stopped.');

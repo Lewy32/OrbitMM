@@ -1,0 +1,110 @@
+# OrbitMM Aggressive Configuration Template
+# 
+# High-frequency trading profile for maximum volume generation.
+# WARNING: High resource usage and transaction costs.
+#
+# Usage:
+#   orbitmm bot create --config aggressive.yaml
+
+# Target token configuration
+token:
+  mint: "YOUR_TOKEN_MINT_ADDRESS"
+  symbol: "TOKEN"  # Optional, for display purposes
+  decimals: 9
+
+# Trading parameters
+trading:
+  # Direction: buy, sell, or both
+  direction: both
+  
+  # Trade size range (in SOL)
+  minSwapSol: 0.02
+  maxSwapSol: 0.15
+  
+  # Time between trades (milliseconds)
+  # Aggressive: 15-45 seconds between trades
+  minIntervalMs: 15000
+  maxIntervalMs: 45000
+  
+  # Slippage tolerance (basis points)
+  # 1% = 100 bps
+  slippageBps: 150
+  
+  # Priority fee strategy
+  priorityFee:
+    mode: dynamic  # static, dynamic, or auto
+    minLamports: 5000
+    maxLamports: 50000
+    
+# Rate limiting
+limits:
+  # Maximum swaps per hour per wallet
+  maxSwapsPerHour: 60
+  
+  # Maximum swaps per wallet before stopping
+  maxSwapsTotal: 500
+  
+  # Maximum SOL volume per wallet
+  maxVolumeSol: 10
+  
+  # Maximum duration before auto-stop (hours)
+  maxDurationHours: 24
+
+# DEX preferences
+dex:
+  # Preferred DEXes in order
+  preferred:
+    - jupiter
+    - raydium
+  
+  # Minimum liquidity required (in USD)
+  minLiquidity: 10000
+  
+  # Maximum price impact allowed (percentage)
+  maxPriceImpact: 2.0
+
+# Bot orchestration
+orchestrator:
+  # Maximum concurrent swaps across all bots
+  maxConcurrentSwaps: 25
+  
+  # RPC endpoint rotation
+  rpcRotation: true
+  
+  # Retry configuration
+  retries:
+    maxAttempts: 3
+    backoffMs: 1000
+    
+  # Error handling
+  errors:
+    # Pause on consecutive failures
+    pauseAfterFailures: 5
+    # Resume after pause (seconds)
+    resumeAfterSeconds: 60
+
+# Monitoring
+monitoring:
+  # Status update interval (seconds)
+  statusIntervalSeconds: 30
+  
+  # Persist state to disk
+  persistence:
+    enabled: true
+    path: ~/.orbitmm/state
+    
+  # Webhook notifications
+  webhooks:
+    # Discord webhook for alerts
+    discord: null
+    # Telegram bot notifications
+    telegram: null
+
+# Logging
+logging:
+  level: info  # debug, info, warn, error
+  file: ~/.orbitmm/logs/aggressive.log
+  # Log transaction details
+  transactions: true
+  # Log quotes (verbose)
+  quotes: false

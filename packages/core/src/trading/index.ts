@@ -29,6 +29,13 @@ export type {
   ValidationResult,
   ValidationCheck,
   
+  // PumpFun Types
+  BondingCurveInfo,
+  PumpFunTokenInfo,
+  
+  // Meteora Types
+  MeteoraPoolState,
+  
   // Utility Types
   TokenAccountInfo,
   QuoteRequestOptions,
@@ -70,6 +77,32 @@ export {
   getPools as getRaydiumPools,
 } from './raydium.js';
 
+// ============ PumpFun Integration ============
+
+export {
+  PumpFunClient,
+  getQuote as getPumpFunQuote,
+  swap as pumpfunSwap,
+  getPools as getPumpFunPools,
+  isOnPumpFun,
+  hasMigrated as hasPumpFunMigrated,
+  getBondingCurveAddress,
+  PUMPFUN_CONSTANTS,
+} from './pumpfun.js';
+
+// ============ Meteora Integration ============
+
+export {
+  MeteoraClient,
+  getQuote as getMeteoraQuote,
+  swap as meteoraSwap,
+  getPools as getMeteoraPools,
+  getAllPools as getAllMeteoraPools,
+  createDLMMPool,
+  swapWithSDK as meteoraSwapWithSDK,
+  METEORA_CONSTANTS,
+} from './meteora.js';
+
 // ============ Smart Router ============
 
 export type { RouterConfig } from './router.js';
@@ -78,8 +111,10 @@ export {
   TradingRouter,
   DEFAULT_ROUTER_CONFIG,
   getBestQuote,
+  getQuoteFromDex,
   executeSwap,
   detectPoolMigration,
+  findAvailableDexes,
 } from './router.js';
 
 // ============ Transaction Executor ============

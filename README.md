@@ -1,19 +1,75 @@
 # OrbitMM
 
+[![Build Status](https://img.shields.io/github/actions/workflow/status/yourusername/orbitmm/ci.yml?branch=main)](https://github.com/yourusername/orbitmm/actions)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.0+-blue.svg)](https://www.typescriptlang.org/)
+[![Node.js](https://img.shields.io/badge/Node.js-18+-green.svg)](https://nodejs.org/)
+[![Solana](https://img.shields.io/badge/Solana-Mainnet-purple.svg)](https://solana.com/)
+
 **Solana Market Making Bot Platform**
 
 A professional-grade TypeScript monorepo for automated market making on Solana DEXes. Supports wallet generation, multi-DEX trading (Jupiter, Raydium), bot orchestration with 1000+ concurrent bots, and on-chain manipulation detection powered by Allium.
 
-## Features
+---
+
+## 📚 Table of Contents
+
+- [Features](#-features)
+- [Quick Start](#-quick-start)
+- [Installation](#installation)
+- [Documentation](#-documentation)
+- [Examples](#-examples)
+- [Package Structure](#-package-structure)
+- [Configuration](#-configuration)
+- [API Usage](#-api-usage)
+- [Development](#-development)
+- [Security](#-security)
+- [License](#-license)
+
+---
+
+## ✨ Features
 
 - 🔑 **Wallet Management**: HD wallet generation, AES-256-GCM encryption, batch funding
 - 💱 **Multi-DEX Trading**: Jupiter, Raydium integration with smart routing
 - 🤖 **Bot Orchestration**: Pause/resume, crash recovery, WAL persistence
 - 🔍 **Manipulation Detection**: Pattern analysis powered by Allium
+- 📊 **Real-time Monitoring**: Live detection alerts with webhook support
+- 🛡️ **Enterprise Security**: Encrypted storage, secure key management
 
-## Quick Start
+---
 
-### Installation
+## 🚀 Quick Start
+
+```bash
+# Clone and install
+git clone https://github.com/yourusername/orbitmm
+cd orbitmm
+pnpm install && pnpm approve-builds && pnpm build
+
+# Generate wallets
+orbitmm wallet generate 5
+
+# Get a quote
+orbitmm trade quote <TOKEN_MINT> 0.1
+
+# Create and start bots
+orbitmm bot create 5 --token <TOKEN_MINT> --direction both
+orbitmm bot start --all
+```
+
+📖 **[Full Quick Start Guide →](./docs/QUICKSTART.md)**
+
+---
+
+## Installation
+
+### Prerequisites
+
+- Node.js 18+
+- pnpm (recommended) or npm
+
+### Steps
 
 ```bash
 # Clone repository
@@ -28,90 +84,71 @@ pnpm approve-builds
 
 # Build all packages
 pnpm build
+
+# (Optional) Link CLI globally
+pnpm link --global
 ```
 
-### Generate Wallets
+### Verify Installation
 
 ```bash
-# Generate 10 random wallets
-orbitmm wallet generate 10
+orbitmm --version
+# OrbitMM v0.1.0
 
-# Generate HD wallets from mnemonic
-orbitmm wallet generate 10 --hd --mnemonic "your mnemonic phrase"
-
-# Encrypt wallet file
-orbitmm wallet encrypt wallets.json --password "your-secure-password"
-
-# Decrypt wallet file
-orbitmm wallet decrypt wallets.enc.json --password "your-secure-password"
-
-# Check balances
-orbitmm wallet balance wallets.json
+orbitmm status
 ```
 
-### Create and Run Bots
+---
+
+## 📖 Documentation
+
+| Document | Description |
+|----------|-------------|
+| [**Quick Start**](./docs/QUICKSTART.md) | 5-minute setup guide |
+| [**CLI Reference**](./docs/CLI_REFERENCE.md) | Complete command documentation |
+| [**Troubleshooting**](./docs/TROUBLESHOOTING.md) | Common issues and solutions |
+| [**Architecture**](./docs/ARCHITECTURE.md) | System design overview |
+| [**Detection**](./docs/DETECTION.md) | Manipulation detection details |
+| [**Ethics**](./docs/ETHICS.md) | Responsible use guidelines |
+
+---
+
+## 💡 Examples
+
+Ready-to-run examples in the [`examples/`](./examples/) directory:
+
+| Example | Description |
+|---------|-------------|
+| [`basic-volume-boost.ts`](./examples/basic-volume-boost.ts) | Simple volume boosting setup |
+| [`detection-monitor.ts`](./examples/detection-monitor.ts) | Monitor a token for manipulation |
+| [`multi-wallet-trade.ts`](./examples/multi-wallet-trade.ts) | Coordinated trading across wallets |
+
+### Configuration Templates
+
+Pre-configured YAML templates in [`examples/config-templates/`](./examples/config-templates/):
+
+| Template | Use Case |
+|----------|----------|
+| [`aggressive.yaml`](./examples/config-templates/aggressive.yaml) | High frequency, max volume |
+| [`conservative.yaml`](./examples/config-templates/conservative.yaml) | Low frequency, safer |
+| [`detection-only.yaml`](./examples/config-templates/detection-only.yaml) | Monitoring, no trading |
+
+### Run Examples
 
 ```bash
-# Create bot configuration
-orbitmm bot create \
-  --wallets wallets.json \
-  --token TokenMintAddress \
-  --direction both \
-  --min-swap 0.01 \
-  --max-swap 0.1 \
-  --min-interval 30000 \
-  --max-interval 120000
+# Set required environment variables
+export TARGET_TOKEN=YourTokenMintAddress
+export SOLANA_RPC_URL=https://api.mainnet-beta.solana.com
 
-# Start bots
-orbitmm bot start
-
-# Check status
-orbitmm bot status
-
-# Pause all bots
-orbitmm bot pause
-
-# Resume bots
-orbitmm bot resume
-
-# Stop bots
-orbitmm bot stop
+# Run with ts-node
+npx ts-node examples/basic-volume-boost.ts
+npx ts-node examples/detection-monitor.ts
+npx ts-node examples/multi-wallet-trade.ts
 ```
 
-### Trade Commands
+---
 
-```bash
-# Get quote
-orbitmm trade quote \
-  --input So11111111111111111111111111111111111111112 \
-  --output EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v \
-  --amount 1
-
-# Execute swap
-orbitmm trade swap \
-  --input So11111111111111111111111111111111111111112 \
-  --output EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v \
-  --amount 1 \
-  --wallet wallet.json
-
-# Check pools
-orbitmm trade pools --token TokenMintAddress
-```
-
-### Detection Commands
-
-```bash
-# Analyze token for manipulation
-orbitmm detect analyze TokenMintAddress
-
-# Start monitoring
-orbitmm detect monitor TokenMintAddress --threshold 0.7
-
-# Stop monitoring
-orbitmm detect stop TokenMintAddress
-```
-
-## Package Structure
+## 📦 Package Structure
 
 ```
 packages/
@@ -124,23 +161,33 @@ packages/
 └── bot-telegram/   # Telegram bot interface
 ```
 
-## Configuration
+---
+
+## ⚙️ Configuration
 
 ### Environment Variables
 
+Create a `.env` file from the example:
+
 ```bash
-# RPC Endpoints (comma-separated)
+cp .env.example .env
+```
+
+Key variables:
+
+```bash
+# RPC Endpoints
 SOLANA_RPC_URL=https://api.mainnet-beta.solana.com
 
 # Allium API (for detection features)
 ALLIUM_API_KEY=your-api-key
 
-# Optional: Custom Jupiter API
+# Optional: Custom DEX APIs
 JUPITER_API_URL=https://quote-api.jup.ag/v6
-
-# Optional: Custom Raydium API
 RAYDIUM_API_URL=https://api.raydium.io/v2
 ```
+
+📖 **[See .env.example for all options](./.env.example)**
 
 ### Bot Configuration
 
@@ -173,26 +220,9 @@ const config: BotConfig = {
 };
 ```
 
-## Development
+---
 
-```bash
-# Build all packages
-pnpm build
-
-# Run tests
-pnpm test
-
-# Type check
-pnpm typecheck
-
-# Lint
-pnpm lint
-
-# Development mode (watch)
-pnpm dev
-```
-
-## API Usage
+## 🔧 API Usage
 
 ### Wallet Module
 
@@ -280,18 +310,65 @@ const handle = engine.monitor({
 handle.stop();
 ```
 
-## Security
+---
+
+## 🛠️ Development
+
+```bash
+# Build all packages
+pnpm build
+
+# Run tests
+pnpm test
+
+# Type check
+pnpm typecheck
+
+# Lint
+pnpm lint
+
+# Development mode (watch)
+pnpm dev
+
+# Run specific example
+npx ts-node examples/basic-volume-boost.ts
+```
+
+---
+
+## 🔒 Security
 
 - **Wallet Encryption**: AES-256-GCM with Argon2id key derivation
 - **Private Keys**: Never logged or transmitted
 - **RPC Security**: Support for authenticated endpoints
 - **Rate Limiting**: Built-in circuit breakers and backoff
 
-## License
+### Security Best Practices
+
+1. **Never commit** `.env` or wallet files
+2. **Use encrypted wallets** (`--no-encrypt` only for testing)
+3. **Use private RPCs** in production
+4. **Set reasonable limits** on bots to prevent runaway spending
+5. **Monitor bot activity** regularly
+
+---
+
+## 📄 License
 
 MIT
 
-## Credits
+---
 
-- Detection features powered by [Allium](https://allium.com)
-- DEX integrations: Jupiter, Raydium
+## 🙏 Credits
+
+- Detection features powered by [Allium](https://allium.so)
+- DEX integrations: [Jupiter](https://jup.ag), [Raydium](https://raydium.io)
+- Built with [TypeScript](https://www.typescriptlang.org/), [Solana Web3.js](https://solana-labs.github.io/solana-web3.js/)
+
+---
+
+## 📞 Support
+
+- 📖 [Documentation](./docs/)
+- 🐛 [Issue Tracker](https://github.com/yourusername/orbitmm/issues)
+- 💬 [Discussions](https://github.com/yourusername/orbitmm/discussions)

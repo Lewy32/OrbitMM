@@ -7,8 +7,8 @@ import { describe, it, expect, beforeEach, vi, Mock } from 'vitest';
 import { Connection, Keypair, PublicKey } from '@solana/web3.js';
 import {
   JupiterClient,
-  getQuote,
-  swap,
+  getJupiterQuote as getQuote,
+  jupiterSwap as swap,
   NoRouteError,
   APIError,
   QuoteExpiredError,

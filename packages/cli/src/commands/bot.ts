@@ -13,13 +13,13 @@
 import { Command } from 'commander';
 import * as fs from 'fs/promises';
 import * as path from 'path';
-// NOTE: These imports will work once the orchestrator module is implemented
-// import {
-//   createOrchestrator,
-//   type BotConfig,
-//   type BotSnapshot,
-//   type OrchestratorConfig,
-// } from '@orbitmm/core';
+import {
+  type BotConfig,
+  type BotSnapshot,
+  type OrchestratorConfig,
+  Orchestrator,
+  createDefaultBotStats,
+} from '@orbitmm/core';
 import {
   colors,
   icons,
@@ -40,20 +40,10 @@ import {
   keyValue,
 } from '../utils/display.js';
 
-// Placeholder types until orchestrator is implemented
-interface BotConfig {
-  targetToken: string;
-  direction: 'buy' | 'sell' | 'both';
-  minSwapSol: number;
-  maxSwapSol: number;
-  minIntervalMs: number;
-  maxIntervalMs: number;
-  maxSwapsPerHour?: number;
-  maxTotalVolumeSol?: number;
-  stopAfterSwaps?: number;
-}
+// ============ Types ============
 
-interface BotSnapshot {
+// Extended snapshot for CLI file storage (includes fields the CLI manages locally)
+interface CLIBotSnapshot {
   id: string;
   walletPublicKey: string;
   state: 'idle' | 'running' | 'paused' | 'stopped' | 'error';
@@ -79,7 +69,7 @@ function getConfigPath(): string {
   return process.env.ORBITMM_CONFIG_PATH ?? path.join(process.env.HOME ?? '.', '.orbitmm', 'bots.json');
 }
 
-async function loadBots(): Promise<BotSnapshot[]> {
+async function loadBots(): Promise<CLIBotSnapshot[]> {
   const configPath = getConfigPath();
   try {
     const content = await fs.readFile(configPath, 'utf-8');
@@ -89,7 +79,7 @@ async function loadBots(): Promise<BotSnapshot[]> {
   }
 }
 
-async function saveBots(bots: BotSnapshot[]): Promise<void> {
+async function saveBots(bots: CLIBotSnapshot[]): Promise<void> {
   const configPath = getConfigPath();
   await fs.mkdir(path.dirname(configPath), { recursive: true });
   await fs.writeFile(configPath, JSON.stringify(bots, null, 2));
@@ -187,10 +177,10 @@ export function registerBotCommands(program: Command): void {
         spin.start();
 
         const bots = await loadBots();
-        const newBots: BotSnapshot[] = [];
+        const newBots: CLIBotSnapshot[] = [];
 
         for (let i = 0; i < count; i++) {
-          const bot: BotSnapshot = {
+          const bot: CLIBotSnapshot = {
             id: generateBotId(),
             walletPublicKey: '', // Will be assigned when orchestrator is running
             state: 'idle',
@@ -553,7 +543,7 @@ export function registerBotCommands(program: Command): void {
 
         // Create merged bot
         const primary = toMerge[0];
-        const merged: BotSnapshot = {
+        const merged: CLIBotSnapshot = {
           id: generateBotId(),
           walletPublicKey: primary.walletPublicKey,
           state: 'idle',
@@ -619,7 +609,7 @@ export function registerBotCommands(program: Command): void {
         info(`Splitting bot ${id}...`);
 
         // Create two new bots with same config
-        const bot1: BotSnapshot = {
+        const bot1: CLIBotSnapshot = {
           id: generateBotId(),
           walletPublicKey: '',
           state: 'idle',
@@ -639,7 +629,7 @@ export function registerBotCommands(program: Command): void {
           updatedAt: Date.now(),
         };
 
-        const bot2: BotSnapshot = {
+        const bot2: CLIBotSnapshot = {
           id: generateBotId(),
           walletPublicKey: '',
           state: 'idle',

@@ -1,0 +1,175 @@
+# OrbitMM Detection-Only Configuration Template
+#
+# Monitoring-only profile for analyzing tokens without trading.
+# Perfect for due diligence and market analysis.
+#
+# Usage:
+#   orbitmm detect monitor --config detection-only.yaml TokenMintAddress
+
+# Target token(s) to monitor
+tokens:
+  - mint: "YOUR_TOKEN_MINT_ADDRESS"
+    symbol: "TOKEN"
+  # Add more tokens to monitor:
+  # - mint: "ANOTHER_TOKEN_MINT"
+  #   symbol: "TOKEN2"
+
+# Detection parameters
+detection:
+  # Alert confidence threshold (0.0 - 1.0)
+  # Lower = more sensitive, more false positives
+  # Higher = fewer alerts, might miss subtle patterns
+  alertThreshold: 0.7
+  
+  # Check interval (seconds)
+  checkIntervalSeconds: 60
+  
+  # Lookback window for analysis (minutes)
+  lookbackMinutes: 30
+  
+  # Maximum transactions to analyze per check
+  maxTransactions: 5000
+
+# Pattern detection settings
+patterns:
+  # Enable/disable specific pattern detectors
+  walletClustering:
+    enabled: true
+    sensitivity: medium  # low, medium, high
+    
+  intervalRegularity:
+    enabled: true
+    sensitivity: medium
+    # Coefficient of variation threshold
+    cvThreshold: 0.3
+    
+  sizeDistribution:
+    enabled: true
+    sensitivity: medium
+    # Gini coefficient threshold
+    giniThreshold: 0.4
+    
+  coordinatedTiming:
+    enabled: true
+    sensitivity: medium
+    # Time window for coordinated trades (ms)
+    windowMs: 5000
+    
+  newWalletSpam:
+    enabled: true
+    sensitivity: high
+    # Wallet age threshold (hours)
+    ageThresholdHours: 24
+    
+  circularTrading:
+    enabled: true
+    sensitivity: medium
+    # Depth of circular trade detection
+    maxDepth: 5
+    
+  washTrading:
+    enabled: true
+    sensitivity: medium
+
+# Data sources
+sources:
+  # Primary: On-chain analysis
+  onchain:
+    enabled: true
+    rpcUrl: "${SOLANA_RPC_URL}"
+    
+  # Optional: Allium API for enhanced detection
+  allium:
+    enabled: false
+    apiKey: "${ALLIUM_API_KEY}"
+
+# Alerting
+alerts:
+  # Console output
+  console:
+    enabled: true
+    # Show detailed evidence
+    verbose: true
+    
+  # File logging
+  file:
+    enabled: true
+    path: ~/.orbitmm/logs/detection.log
+    # JSON format for parsing
+    format: json
+    
+  # Webhook notifications
+  webhooks:
+    # Discord webhook
+    discord:
+      enabled: false
+      url: "${DISCORD_WEBHOOK_URL}"
+      # Alert levels to send (low, medium, high, critical)
+      levels:
+        - high
+        - critical
+        
+    # Telegram notifications
+    telegram:
+      enabled: false
+      botToken: "${TELEGRAM_BOT_TOKEN}"
+      chatId: "${TELEGRAM_CHAT_ID}"
+      levels:
+        - high
+        - critical
+        
+    # Generic webhook
+    custom:
+      enabled: false
+      url: "${CUSTOM_WEBHOOK_URL}"
+      headers:
+        Authorization: "Bearer ${WEBHOOK_TOKEN}"
+
+# Alert formatting
+alertFormat:
+  # Include transaction hashes
+  includeTransactions: true
+  # Maximum transactions to include
+  maxTransactions: 10
+  # Include wallet addresses
+  includeWallets: true
+  # Maximum wallets to include
+  maxWallets: 20
+  # Include pattern evidence
+  includeEvidence: true
+
+# Report generation
+reports:
+  # Generate periodic summary reports
+  enabled: true
+  
+  # Report interval (hours)
+  intervalHours: 24
+  
+  # Output path
+  path: ~/.orbitmm/reports
+  
+  # Report format: json, html, markdown
+  format: markdown
+  
+  # Include in report:
+  include:
+    - summary
+    - patterns
+    - topWallets
+    - timeline
+    - recommendations
+
+# Persistence
+persistence:
+  # Save detection state for resume
+  enabled: true
+  path: ~/.orbitmm/detection-state
+  
+  # Keep historical data (days)
+  retentionDays: 30
+
+# Logging
+logging:
+  level: info
+  file: ~/.orbitmm/logs/detection.log

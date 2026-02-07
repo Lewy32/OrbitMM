@@ -127,51 +127,52 @@ describe('Bot', () => {
   });
 
   describe('start()', () => {
-    it('should transition to running state', () => {
+    it('should transition to running state', async () => {
       bot.start();
-      vi.runAllTimers();
+      // The transition uses setImmediate, so advance timers to flush it
+      await vi.advanceTimersToNextTimerAsync();
       
       expect(bot.state).toBe('running');
     });
 
-    it('should emit bot:started event', () => {
+    it('should emit bot:started event', async () => {
       const handler = vi.fn();
       bot.on('bot:started', handler);
       
       bot.start();
-      vi.runAllTimers();
+      await vi.advanceTimersToNextTimerAsync();
       
       expect(handler).toHaveBeenCalled();
     });
 
     it('should set startedAt timestamp', () => {
       bot.start();
-      vi.runAllTimers();
       
       expect(bot.stats.startedAt).not.toBeNull();
     });
 
-    it('should be idempotent (no error on double start)', () => {
+    it('should be idempotent (no error on double start)', async () => {
       bot.start();
-      vi.runAllTimers();
+      await vi.advanceTimersToNextTimerAsync();
       
+      // Now it's running, calling start again should not throw
       expect(() => bot.start()).not.toThrow();
     });
   });
 
   describe('pause()', () => {
-    it('should transition from running to paused', () => {
+    it('should transition from running to paused', async () => {
       bot.start();
-      vi.runAllTimers();
+      await vi.advanceTimersToNextTimerAsync();
       
       bot.pause();
       
       expect(bot.state).toBe('paused');
     });
 
-    it('should emit bot:paused event', () => {
+    it('should emit bot:paused event', async () => {
       bot.start();
-      vi.runAllTimers();
+      await vi.advanceTimersToNextTimerAsync();
       
       const handler = vi.fn();
       bot.on('bot:paused', handler);
@@ -188,9 +189,9 @@ describe('Bot', () => {
   });
 
   describe('resume()', () => {
-    it('should transition from paused to running', () => {
+    it('should transition from paused to running', async () => {
       bot.start();
-      vi.runAllTimers();
+      await vi.advanceTimersToNextTimerAsync();
       bot.pause();
       
       bot.resume();
@@ -198,9 +199,9 @@ describe('Bot', () => {
       expect(bot.state).toBe('running');
     });
 
-    it('should emit bot:resumed event', () => {
+    it('should emit bot:resumed event', async () => {
       bot.start();
-      vi.runAllTimers();
+      await vi.advanceTimersToNextTimerAsync();
       bot.pause();
       
       const handler = vi.fn();
@@ -217,18 +218,18 @@ describe('Bot', () => {
   });
 
   describe('stop()', () => {
-    it('should transition to stopped state', () => {
+    it('should transition to stopped state', async () => {
       bot.start();
-      vi.runAllTimers();
+      await vi.advanceTimersToNextTimerAsync();
       
       bot.stop();
       
       expect(bot.state).toBe('stopped');
     });
 
-    it('should emit bot:stopped event', () => {
+    it('should emit bot:stopped event', async () => {
       bot.start();
-      vi.runAllTimers();
+      await vi.advanceTimersToNextTimerAsync();
       
       const handler = vi.fn();
       bot.on('bot:stopped', handler);
@@ -243,9 +244,9 @@ describe('Bot', () => {
       expect(() => bot.stop()).not.toThrow();
     });
 
-    it('should work from any state', () => {
+    it('should work from any state', async () => {
       bot.start();
-      vi.runAllTimers();
+      await vi.advanceTimersToNextTimerAsync();
       bot.pause();
       
       bot.stop();
@@ -320,17 +321,17 @@ describe('Bot', () => {
   });
 
   describe('limits', () => {
-    it('should respect stopAfterSwaps', () => {
+    it('should respect stopAfterSwaps', async () => {
       const limitedBot = createTestBot({ stopAfterSwaps: 2 });
       limitedBot.start();
-      vi.runAllTimers();
+      await vi.advanceTimersToNextTimerAsync(); // Transition to running
       
       // Simulate successful swaps
       limitedBot.recordSwapSuccess(0.05, 'buy', 'sig1', 100);
       limitedBot.recordSwapSuccess(0.05, 'buy', 'sig2', 100);
       
-      // After reaching limit, next schedule should stop
-      vi.runAllTimers();
+      // After reaching limit, advance time to trigger the check
+      vi.advanceTimersByTime(300);
       
       expect(limitedBot.state).toBe('stopped');
       limitedBot.destroy();
@@ -504,7 +505,7 @@ describe('WAL', () => {
 // ============ Integration Tests ============
 
 describe('Bot Integration', () => {
-  it('should handle full lifecycle', () => {
+  it('should handle full lifecycle', async () => {
     vi.useFakeTimers();
     
     const bot = createTestBot();
@@ -515,9 +516,9 @@ describe('Bot Integration', () => {
     bot.on('bot:resumed', () => events.push('resumed'));
     bot.on('bot:stopped', () => events.push('stopped'));
     
-    // Start
+    // Start - wait for setImmediate to transition to running
     bot.start();
-    vi.runAllTimers();
+    await vi.advanceTimersToNextTimerAsync();
     expect(bot.state).toBe('running');
     
     // Pause
@@ -538,7 +539,7 @@ describe('Bot Integration', () => {
     vi.useRealTimers();
   });
 
-  it('should emit swap events', () => {
+  it('should emit swap events', async () => {
     vi.useFakeTimers();
     
     const bot = createTestBot();
@@ -546,15 +547,16 @@ describe('Bot Integration', () => {
     
     bot.on('swap:initiated', (data) => swapEvents.push(data));
     bot.on('swap:execute', (data) => {
-      // Simulate successful execution
+      // Simulate successful execution - stop bot to prevent infinite timer loop
       bot.recordSwapSuccess(data.amountSol, data.direction, 'sig123', 1000);
+      bot.stop(); // Stop after first swap to prevent infinite timers
     });
     bot.on('swap:completed', (data) => swapEvents.push(data));
     
     bot.start();
-    vi.runAllTimers();
+    await vi.advanceTimersToNextTimerAsync(); // Transition to running
     
-    // Advance time to trigger swap
+    // Advance time to trigger first swap (max interval is 200ms)
     vi.advanceTimersByTime(250);
     
     expect(swapEvents.length).toBeGreaterThan(0);

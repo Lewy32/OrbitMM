@@ -27,6 +27,8 @@ import {
 
 import * as jupiter from './jupiter.js';
 import * as raydium from './raydium.js';
+import * as pumpfun from './pumpfun.js';
+import * as meteora from './meteora.js';
 
 // ============ Router Configuration ============
 
@@ -36,6 +38,13 @@ export interface RouterConfig {
   parallelQuotes: boolean;
   validation: TradeValidationConfig;
   retry: RetryConfig;
+  
+  // DEX-specific settings
+  pumpfunEnabled: boolean;
+  meteoraEnabled: boolean;
+  
+  // Fallback order (priority)
+  fallbackOrder: DEX[];
 }
 
 export const DEFAULT_ROUTER_CONFIG: RouterConfig = {
@@ -44,6 +53,9 @@ export const DEFAULT_ROUTER_CONFIG: RouterConfig = {
   parallelQuotes: true,
   validation: DEFAULT_VALIDATION_CONFIG,
   retry: DEFAULT_RETRY_CONFIG,
+  pumpfunEnabled: true,
+  meteoraEnabled: true,
+  fallbackOrder: ['jupiter', 'raydium', 'pumpfun', 'meteora'],
 };
 
 // ============ Router Class ============
@@ -109,6 +121,40 @@ export class TradingRouter {
   }
 
   /**
+   * Get quote from a specific DEX.
+   */
+  async getQuoteFromDex(params: QuoteParams, dex: DEX): Promise<Quote> {
+    switch (dex) {
+      case 'jupiter':
+        return jupiter.getQuote(
+          params.inputMint,
+          params.outputMint,
+          params.amount,
+          params.slippageBps,
+          { connection: this.connection }
+        );
+      
+      case 'raydium':
+        return raydium.getQuote(this.connection, params);
+      
+      case 'pumpfun':
+        if (!this.config.pumpfunEnabled) {
+          throw new APIError('pumpfun', 'PumpFun is disabled in router config');
+        }
+        return pumpfun.getQuote(this.connection, params);
+      
+      case 'meteora':
+        if (!this.config.meteoraEnabled) {
+          throw new APIError('meteora', 'Meteora is disabled in router config');
+        }
+        return meteora.getQuote(this.connection, params);
+      
+      default:
+        throw new APIError(dex, `Unknown DEX: ${dex}`);
+    }
+  }
+
+  /**
    * Execute swap with automatic DEX selection and retry logic.
    */
   async executeSwap(
@@ -135,14 +181,21 @@ export class TradingRouter {
   }
 
   /**
-   * Detect if token has migrated pools (PumpFun → Raydium).
+   * Detect if token has migrated pools.
+   * Checks: PumpFun → Raydium, Raydium → Meteora, etc.
    */
   async detectPoolMigration(tokenMint: PublicKey): Promise<PoolMigrationResult> {
     try {
-      // Get pools from different DEXs
-      const [jupiterPools, raydiumPools] = await Promise.allSettled([
+      // Get pools from all DEXs in parallel
+      const [jupiterPools, raydiumPools, pumpfunPools, meteoraPools] = await Promise.allSettled([
         jupiter.getPools(this.connection, tokenMint),
         raydium.getPools(this.connection, tokenMint),
+        this.config.pumpfunEnabled 
+          ? pumpfun.getPools(this.connection, tokenMint) 
+          : Promise.resolve([]),
+        this.config.meteoraEnabled 
+          ? meteora.getPools(this.connection, tokenMint) 
+          : Promise.resolve([]),
       ]);
 
       const allPools: Pool[] = [];
@@ -153,19 +206,44 @@ export class TradingRouter {
       if (raydiumPools.status === 'fulfilled') {
         allPools.push(...raydiumPools.value);
       }
+      if (pumpfunPools.status === 'fulfilled') {
+        allPools.push(...pumpfunPools.value);
+      }
+      if (meteoraPools.status === 'fulfilled') {
+        allPools.push(...meteoraPools.value);
+      }
 
-      // Check for migration patterns
+      // Check for PumpFun migration status
+      if (this.config.pumpfunEnabled) {
+        const isStillOnPumpfun = await pumpfun.isOnPumpFun(this.connection, tokenMint);
+        const hasMigratedFromPumpfun = await pumpfun.hasMigrated(this.connection, tokenMint);
+        
+        if (hasMigratedFromPumpfun) {
+          // Find the Raydium pool (PumpFun migrates to Raydium)
+          const raydiumPool = allPools.find(p => p.dex === 'raydium');
+          const pumpfunPool = allPools.find(p => p.dex === 'pumpfun');
+          
+          return {
+            migrated: true,
+            from: 'pumpfun',
+            to: 'raydium',
+            oldPoolId: pumpfunPool?.id,
+            newPoolId: raydiumPool?.id,
+          };
+        }
+      }
+
+      // Check for migration patterns by liquidity
       const hasPumpfun = allPools.some(p => p.dex === 'pumpfun');
       const hasRaydium = allPools.some(p => p.dex === 'raydium');
       const hasMeteora = allPools.some(p => p.dex === 'meteora');
 
-      // Common migration: PumpFun → Raydium
+      // PumpFun → Raydium migration (by liquidity)
       if (hasPumpfun && hasRaydium) {
-        // Check which has more liquidity
         const pumpfunPool = allPools.find(p => p.dex === 'pumpfun');
         const raydiumPool = allPools.find(p => p.dex === 'raydium');
 
-        if (raydiumPool && (!pumpfunPool || raydiumPool.liquidity > (pumpfunPool.liquidity || 0))) {
+        if (raydiumPool && (!pumpfunPool || raydiumPool.liquidity > (pumpfunPool.liquidity || 0) * 2)) {
           return {
             migrated: true,
             from: 'pumpfun',
@@ -176,12 +254,12 @@ export class TradingRouter {
         }
       }
 
-      // Another common migration: Raydium → Meteora
+      // Raydium → Meteora migration
       if (hasRaydium && hasMeteora) {
         const raydiumPool = allPools.find(p => p.dex === 'raydium');
         const meteoraPool = allPools.find(p => p.dex === 'meteora');
 
-        if (meteoraPool && (!raydiumPool || meteoraPool.liquidity > (raydiumPool.liquidity || 0))) {
+        if (meteoraPool && (!raydiumPool || meteoraPool.liquidity > (raydiumPool.liquidity || 0) * 2)) {
           return {
             migrated: true,
             from: 'raydium',
@@ -200,19 +278,80 @@ export class TradingRouter {
   }
 
   /**
+   * Check if a token is tradeable and on which DEXs.
+   */
+  async findAvailableDexes(tokenMint: PublicKey): Promise<DEX[]> {
+    const available: DEX[] = [];
+    
+    const checks = await Promise.allSettled([
+      // Check PumpFun
+      this.config.pumpfunEnabled 
+        ? pumpfun.isOnPumpFun(this.connection, tokenMint)
+        : Promise.resolve(false),
+      
+      // Check Raydium
+      raydium.getPools(this.connection, tokenMint),
+      
+      // Check Meteora
+      this.config.meteoraEnabled
+        ? meteora.getPools(this.connection, tokenMint)
+        : Promise.resolve([]),
+    ]);
+
+    // PumpFun check
+    if (checks[0].status === 'fulfilled' && checks[0].value === true) {
+      available.push('pumpfun');
+    }
+
+    // Raydium check
+    if (checks[1].status === 'fulfilled' && (checks[1].value as Pool[]).length > 0) {
+      available.push('raydium');
+    }
+
+    // Meteora check
+    if (checks[2].status === 'fulfilled' && (checks[2].value as Pool[]).length > 0) {
+      available.push('meteora');
+    }
+
+    // Jupiter is always available as aggregator
+    available.push('jupiter');
+
+    return available;
+  }
+
+  /**
    * Get quotes from direct DEXs (non-aggregator)
    */
   private async getDirectDexQuotes(params: QuoteParams): Promise<Quote[]> {
     const quotes: Quote[] = [];
     
     if (this.config.parallelQuotes) {
+      // Build quote promises based on enabled DEXs
+      const quotePromises: Promise<Quote>[] = [];
+      
+      // Follow fallback order (skip jupiter as it's already tried)
+      for (const dex of this.config.fallbackOrder) {
+        if (dex === 'jupiter') continue;
+        
+        switch (dex) {
+          case 'raydium':
+            quotePromises.push(raydium.getQuote(this.connection, params));
+            break;
+          case 'pumpfun':
+            if (this.config.pumpfunEnabled) {
+              quotePromises.push(pumpfun.getQuote(this.connection, params));
+            }
+            break;
+          case 'meteora':
+            if (this.config.meteoraEnabled) {
+              quotePromises.push(meteora.getQuote(this.connection, params));
+            }
+            break;
+        }
+      }
+
       // Parallel queries
-      const results = await Promise.allSettled([
-        raydium.getQuote(this.connection, params),
-        // Add more DEXs here as they're implemented:
-        // pumpfun.getQuote(this.connection, params),
-        // meteora.getQuote(this.connection, params),
-      ]);
+      const results = await Promise.allSettled(quotePromises);
 
       for (const result of results) {
         if (result.status === 'fulfilled') {
@@ -220,12 +359,36 @@ export class TradingRouter {
         }
       }
     } else {
-      // Sequential queries (stop on first success)
-      try {
-        const quote = await raydium.getQuote(this.connection, params);
-        quotes.push(quote);
-      } catch {
-        // Continue to next DEX
+      // Sequential queries (stop on first success) following fallback order
+      for (const dex of this.config.fallbackOrder) {
+        if (dex === 'jupiter') continue;
+        
+        try {
+          let quote: Quote | null = null;
+          
+          switch (dex) {
+            case 'raydium':
+              quote = await raydium.getQuote(this.connection, params);
+              break;
+            case 'pumpfun':
+              if (this.config.pumpfunEnabled) {
+                quote = await pumpfun.getQuote(this.connection, params);
+              }
+              break;
+            case 'meteora':
+              if (this.config.meteoraEnabled) {
+                quote = await meteora.getQuote(this.connection, params);
+              }
+              break;
+          }
+          
+          if (quote) {
+            quotes.push(quote);
+            break; // Stop on first success in sequential mode
+          }
+        } catch {
+          // Continue to next DEX
+        }
       }
     }
 
@@ -322,7 +485,18 @@ export class TradingRouter {
       case 'raydium':
         return raydium.swap(this.connection, swapParams);
       
-      // Add more DEXs as implemented
+      case 'pumpfun':
+        if (!this.config.pumpfunEnabled) {
+          throw new SwapTransactionError('PumpFun is disabled');
+        }
+        return pumpfun.swap(this.connection, swapParams);
+      
+      case 'meteora':
+        if (!this.config.meteoraEnabled) {
+          throw new SwapTransactionError('Meteora is disabled');
+        }
+        return meteora.swap(this.connection, swapParams);
+      
       default:
         // Fallback to Jupiter for aggregate routes
         return jupiter.swap(this.connection, swapParams);
@@ -424,6 +598,18 @@ export async function getBestQuote(
 }
 
 /**
+ * Get quote from a specific DEX.
+ */
+export async function getQuoteFromDex(
+  connection: Connection,
+  params: QuoteParams,
+  dex: DEX
+): Promise<Quote> {
+  const router = getDefaultRouter(connection);
+  return router.getQuoteFromDex(params, dex);
+}
+
+/**
  * Execute swap with automatic DEX selection.
  */
 export async function executeSwap(
@@ -437,7 +623,7 @@ export async function executeSwap(
 }
 
 /**
- * Detect if token has migrated pools (PumpFun → Raydium).
+ * Detect if token has migrated pools (PumpFun → Raydium, etc.).
  */
 export async function detectPoolMigration(
   connection: Connection,
@@ -445,4 +631,15 @@ export async function detectPoolMigration(
 ): Promise<PoolMigrationResult> {
   const router = getDefaultRouter(connection);
   return router.detectPoolMigration(tokenMint);
+}
+
+/**
+ * Find which DEXs have liquidity for a token.
+ */
+export async function findAvailableDexes(
+  connection: Connection,
+  tokenMint: PublicKey
+): Promise<DEX[]> {
+  const router = getDefaultRouter(connection);
+  return router.findAvailableDexes(tokenMint);
 }

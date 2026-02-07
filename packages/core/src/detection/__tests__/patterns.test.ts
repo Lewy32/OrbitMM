@@ -45,8 +45,16 @@ function generateRandomTransactions(
   const now = Date.now();
   let timestamp = now;
   
+  // Use predetermined highly irregular intervals to ensure test determinism
+  // These intervals have high variance (CV > 1.0) to simulate human behavior
+  const irregularIntervals = [
+    2500, 45000, 8000, 120000, 3500, 67000, 15000, 180000, 5500, 92000,
+    25000, 4000, 150000, 12000, 78000, 6500, 200000, 9500, 55000, 18000,
+    3000, 95000, 7500, 135000, 22000, 48000, 11000, 165000, 8500, 72000,
+  ];
+  
   return Array.from({ length: count }, (_, i) => {
-    timestamp += Math.random() * 60000 + 1000; // 1s to 61s random intervals
+    timestamp += irregularIntervals[i % irregularIntervals.length];
     return {
       signature: `sig${i}`,
       timestamp,
@@ -139,7 +147,20 @@ describe('isWalletRegular', () => {
   });
 
   it('should identify irregular wallet', () => {
-    const transactions = generateRandomTransactions(10, 'testWallet');
+    // Use deliberately irregular timestamps with high variance
+    const now = Date.now();
+    const transactions: TransactionData[] = [
+      { signature: 'sig0', timestamp: now, signer: 'testWallet', amount: 0.1, direction: 'buy' as const },
+      { signature: 'sig1', timestamp: now + 100, signer: 'testWallet', amount: 0.1, direction: 'buy' as const },
+      { signature: 'sig2', timestamp: now + 50000, signer: 'testWallet', amount: 0.1, direction: 'buy' as const },
+      { signature: 'sig3', timestamp: now + 50500, signer: 'testWallet', amount: 0.1, direction: 'buy' as const },
+      { signature: 'sig4', timestamp: now + 200000, signer: 'testWallet', amount: 0.1, direction: 'buy' as const },
+      { signature: 'sig5', timestamp: now + 200100, signer: 'testWallet', amount: 0.1, direction: 'buy' as const },
+      { signature: 'sig6', timestamp: now + 500000, signer: 'testWallet', amount: 0.1, direction: 'buy' as const },
+      { signature: 'sig7', timestamp: now + 505000, signer: 'testWallet', amount: 0.1, direction: 'buy' as const },
+      { signature: 'sig8', timestamp: now + 600000, signer: 'testWallet', amount: 0.1, direction: 'buy' as const },
+      { signature: 'sig9', timestamp: now + 900000, signer: 'testWallet', amount: 0.1, direction: 'buy' as const },
+    ];
     const result = isWalletRegular(transactions);
 
     expect(result.isRegular).toBe(false);
@@ -229,8 +250,14 @@ describe('detectSizeDistribution', () => {
 
 describe('looksNatural', () => {
   it('should return true for natural distribution', () => {
-    // Power-law-like amounts
-    const amounts = Array.from({ length: 50 }, () => Math.pow(Math.random(), 3) * 100);
+    // Deterministic power-law-like distribution (many small, few large)
+    const amounts = [
+      0.01, 0.02, 0.03, 0.04, 0.05, 0.06, 0.07, 0.08, 0.09, 0.1,
+      0.12, 0.15, 0.18, 0.2, 0.25, 0.3, 0.35, 0.4, 0.5, 0.6,
+      0.8, 1.0, 1.2, 1.5, 2.0, 2.5, 3.0, 4.0, 5.0, 6.0,
+      8.0, 10.0, 15.0, 20.0, 30.0, 40.0, 50.0, 60.0, 80.0, 100.0,
+      0.05, 0.1, 0.15, 0.2, 0.3, 0.5, 0.8, 1.5, 3.0, 5.0,
+    ];
     expect(looksNatural(amounts)).toBe(true);
   });
 

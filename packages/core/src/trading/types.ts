@@ -154,6 +154,40 @@ export interface PoolMigrationResult {
   newPoolId?: string;
 }
 
+// ============ PumpFun-Specific Types ============
+
+export interface BondingCurveInfo {
+  address: string;
+  tokenMint: string;
+  virtualTokenReserves: string;
+  virtualSolReserves: string;
+  realTokenReserves: string;
+  realSolReserves: string;
+  complete: boolean;  // True = migrated to Raydium
+}
+
+export interface PumpFunTokenInfo {
+  mint: string;
+  bondingCurve: string;
+  associatedBondingCurve: string;
+  isOnPumpFun: boolean;
+  hasMigrated: boolean;
+  marketCapSol?: number;
+}
+
+// ============ Meteora-Specific Types ============
+
+export interface MeteoraPoolState {
+  address: string;
+  tokenX: string;
+  tokenY: string;
+  binStep: number;
+  activeId: number;
+  reserveX: string;
+  reserveY: string;
+  feePercentage: number;
+}
+
 // ============ Error Types ============
 
 export class TradingError extends Error {

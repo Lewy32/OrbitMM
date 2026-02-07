@@ -27,11 +27,11 @@ const TEST_MNEMONIC =
   'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about';
 
 // Expected public keys for test mnemonic (first 3 derivation paths)
-// These match Phantom wallet's derivation
+// These are derived using ed25519-hd-key with Solana's standard path
 const EXPECTED_PUBKEYS = [
-  '5YNmS1R9nNSCDzb5a7mMJ1dwK9uHeAAF4CertLq1XP2a',  // m/44'/501'/0'/0'
-  'CzAHrrrHKx9DJyGS5zj4rQT21qkqjQsCpaA8qCRfHFJQ',  // m/44'/501'/1'/0'
-  'FUqJNFv9LXNG7DnNFxQX7KKWX3SALnZfKJuTG4E4W26M',  // m/44'/501'/2'/0'
+  'HAgk14JpMQLgt6rVgv7cBQFJWFto5Dqxi472uT3DKpqk',  // m/44'/501'/0'/0'
+  'Hh8QwFUA6MtVu1qAoq12ucvFHNwCcVTV7hpWjeY1Hztb',  // m/44'/501'/1'/0'
+  '7WktogJEd2wQ9eH2oWusmcoFTgeYi6rS632UviTBJ2jm',  // m/44'/501'/2'/0'
 ];
 
 describe('Generator', () => {

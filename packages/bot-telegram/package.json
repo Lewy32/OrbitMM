@@ -5,9 +5,12 @@
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
+  "bin": {
+    "orbitmm-telegram": "./dist/index.js"
+  },
   "scripts": {
-    "build": "tsup src/index.ts --format esm --dts --clean",
-    "dev": "tsup src/index.ts --format esm --dts --watch",
+    "build": "tsup src/index.ts src/middleware/*.ts src/handlers/*.ts src/utils/*.ts --format esm --dts --clean",
+    "dev": "tsup src/index.ts src/middleware/*.ts src/handlers/*.ts src/utils/*.ts --format esm --dts --watch",
     "start": "node dist/index.js",
     "test": "vitest run",
     "test:watch": "vitest",

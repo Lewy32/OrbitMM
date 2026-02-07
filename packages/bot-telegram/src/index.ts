@@ -15,10 +15,10 @@ import type { Context, SessionFlavor } from 'grammy';
 import { VERSION } from '@orbitmm/core';
 import { authMiddleware } from './middleware/auth.js';
 import { rateLimitMiddleware } from './middleware/rateLimit.js';
-import { registerWalletHandlers } from './handlers/wallet.js';
-import { registerBotHandlers } from './handlers/bot.js';
-import { registerTradeHandlers } from './handlers/trade.js';
-import { registerStatsHandlers } from './handlers/stats.js';
+import { registerWalletHandlers, handleWalletCallback } from './handlers/wallet.js';
+import { registerBotHandlers, handleBotCallbacks } from './handlers/bot.js';
+import { registerTradeHandlers, handleTradeCallbacks } from './handlers/trade.js';
+import { registerStatsHandlers, handleStatsCallbacks } from './handlers/stats.js';
 import { formatHelp, formatWelcome } from './utils/format.js';
 
 // ============ Session Type ============
@@ -80,7 +80,14 @@ function createBot(): Bot<BotContext> {
   registerTradeHandlers(bot);
   registerStatsHandlers(bot);
 
-  // ---- Callback Query Handler ----
+  // ---- Register Callback Query Handlers ----
+  
+  handleWalletCallback(bot);
+  handleBotCallbacks(bot);
+  handleTradeCallbacks(bot);
+  handleStatsCallbacks(bot);
+
+  // ---- Generic Callback Query Handler ----
 
   bot.on('callback_query:data', async (ctx) => {
     const data = ctx.callbackQuery.data;
@@ -170,4 +177,4 @@ main().catch((err) => {
 });
 
 export { createBot, VERSION };
-export type { BotContext, SessionData };
+export type { SessionData };

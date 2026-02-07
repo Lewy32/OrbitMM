@@ -1,0 +1,116 @@
+# OrbitMM Conservative Configuration Template
+#
+# Low-frequency, safer trading profile with lower costs and reduced risk.
+# Suitable for steady, long-term market making operations.
+#
+# Usage:
+#   orbitmm bot create --config conservative.yaml
+
+# Target token configuration
+token:
+  mint: "YOUR_TOKEN_MINT_ADDRESS"
+  symbol: "TOKEN"
+  decimals: 9
+
+# Trading parameters
+trading:
+  # Direction: buy, sell, or both
+  direction: both
+  
+  # Trade size range (in SOL)
+  # Conservative: smaller trades
+  minSwapSol: 0.005
+  maxSwapSol: 0.03
+  
+  # Time between trades (milliseconds)
+  # Conservative: 2-5 minutes between trades
+  minIntervalMs: 120000   # 2 minutes
+  maxIntervalMs: 300000   # 5 minutes
+  
+  # Slippage tolerance (basis points)
+  # Tighter slippage for better fills
+  slippageBps: 50  # 0.5%
+  
+  # Priority fee strategy
+  priorityFee:
+    mode: static
+    lamports: 1000  # Low, fixed priority fee
+
+# Rate limiting
+limits:
+  # Maximum swaps per hour per wallet
+  maxSwapsPerHour: 15
+  
+  # Maximum swaps per wallet before stopping
+  maxSwapsTotal: 100
+  
+  # Maximum SOL volume per wallet
+  maxVolumeSol: 2
+  
+  # Maximum duration before auto-stop (hours)
+  maxDurationHours: 72  # 3 days
+
+# DEX preferences
+dex:
+  preferred:
+    - jupiter  # Jupiter only for best routing
+    
+  # Higher liquidity requirement
+  minLiquidity: 50000
+  
+  # Very low price impact tolerance
+  maxPriceImpact: 0.5
+
+# Bot orchestration
+orchestrator:
+  # Fewer concurrent swaps
+  maxConcurrentSwaps: 5
+  
+  # Single RPC to reduce complexity
+  rpcRotation: false
+  
+  # Conservative retry settings
+  retries:
+    maxAttempts: 2
+    backoffMs: 5000
+    
+  # Strict error handling
+  errors:
+    # Pause on fewer failures
+    pauseAfterFailures: 3
+    # Longer pause before resuming
+    resumeAfterSeconds: 300  # 5 minutes
+
+# Monitoring
+monitoring:
+  # Less frequent updates
+  statusIntervalSeconds: 120
+  
+  persistence:
+    enabled: true
+    path: ~/.orbitmm/state
+    
+  webhooks:
+    discord: null
+    telegram: null
+
+# Logging
+logging:
+  level: info
+  file: ~/.orbitmm/logs/conservative.log
+  transactions: true
+  quotes: false
+
+# Safety features
+safety:
+  # Require manual confirmation for first trade
+  confirmFirstTrade: true
+  
+  # Pause if token price drops significantly
+  priceDropPausePercent: 20
+  
+  # Check token liquidity before each trade
+  checkLiquidity: true
+  
+  # Minimum wallet balance to continue (SOL)
+  minWalletBalance: 0.01

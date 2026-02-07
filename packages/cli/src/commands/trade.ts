@@ -9,13 +9,13 @@
 import { Command } from 'commander';
 import { PublicKey, Connection, Keypair, LAMPORTS_PER_SOL } from '@solana/web3.js';
 import * as fs from 'fs/promises';
-// NOTE: These imports will work once the trading module is implemented
-// import {
-//   getBestQuote,
-//   executeSwap,
-//   type Quote,
-//   type SwapResult,
-// } from '@orbitmm/core';
+import {
+  getBestQuote,
+  executeSwap,
+  type Quote,
+  type SwapResult,
+  type RouteStep,
+} from '@orbitmm/core';
 import {
   colors,
   icons,
@@ -37,37 +37,6 @@ import {
 
 const SOL_MINT = 'So11111111111111111111111111111111111111112';
 const USDC_MINT = 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v';
-
-// Placeholder types until trading module is implemented
-interface Quote {
-  inputMint: string;
-  outputMint: string;
-  inAmount: string;
-  outAmount: string;
-  minOutAmount: string;
-  priceImpactPct: number;
-  route: RouteStep[];
-  dex: string;
-  timestamp: number;
-  expiresAt: number;
-}
-
-interface RouteStep {
-  dex: string;
-  inputMint: string;
-  outputMint: string;
-  poolId: string;
-  percent: number;
-}
-
-interface SwapResult {
-  signature: string;
-  inputAmount: number;
-  outputAmount: number;
-  fee: number;
-  slot: number;
-  timestamp: number;
-}
 
 // ============ Helpers ============
 
@@ -112,59 +81,6 @@ function resolveTokenMint(token: string): string {
   }
 
   return token;
-}
-
-// Mock quote function until trading module is implemented
-async function mockGetQuote(
-  inputMint: string,
-  outputMint: string,
-  amount: number,
-  slippageBps: number
-): Promise<Quote> {
-  // Simulate API delay
-  await new Promise((r) => setTimeout(r, 500));
-
-  // Mock price impact based on amount
-  const priceImpact = Math.min(5, amount / 100);
-
-  return {
-    inputMint,
-    outputMint,
-    inAmount: amount.toString(),
-    outAmount: (amount * 1.5).toString(), // Mock conversion
-    minOutAmount: (amount * 1.5 * (1 - slippageBps / 10000)).toString(),
-    priceImpactPct: priceImpact,
-    route: [
-      {
-        dex: 'jupiter',
-        inputMint,
-        outputMint,
-        poolId: 'mock-pool-123',
-        percent: 100,
-      },
-    ],
-    dex: 'jupiter',
-    timestamp: Date.now(),
-    expiresAt: Date.now() + 30000,
-  };
-}
-
-// Mock swap function until trading module is implemented
-async function mockExecuteSwap(
-  wallet: Keypair,
-  quote: Quote
-): Promise<SwapResult> {
-  // Simulate transaction delay
-  await new Promise((r) => setTimeout(r, 1500));
-
-  return {
-    signature: 'mock' + Math.random().toString(36).slice(2, 15),
-    inputAmount: parseFloat(quote.inAmount),
-    outputAmount: parseFloat(quote.outAmount),
-    fee: 0.000005,
-    slot: 123456789,
-    timestamp: Date.now(),
-  };
 }
 
 // ============ Commands ============
@@ -213,14 +129,13 @@ export function registerTradeCommands(program: Command): void {
         const spin = spinner('Fetching quote...');
         spin.start();
 
-        // TODO: Replace with actual trading module call
-        // const quote = await getBestQuote(connection, {
-        //   inputMint: new PublicKey(inputMint),
-        //   outputMint: new PublicKey(outputMint),
-        //   amount: amount * (inputMint === SOL_MINT ? LAMPORTS_PER_SOL : 1),
-        //   slippageBps,
-        // });
-        const quote = await mockGetQuote(inputMint, outputMint, amount, slippageBps);
+        const connection = getConnection();
+        const quote = await getBestQuote(connection, {
+          inputMint: new PublicKey(inputMint),
+          outputMint: new PublicKey(outputMint),
+          amount: amount * (inputMint === SOL_MINT ? LAMPORTS_PER_SOL : 1),
+          slippageBps,
+        });
 
         spin.succeed('Quote received');
 
@@ -292,10 +207,18 @@ export function registerTradeCommands(program: Command): void {
         const wallet = await loadWallet(options.wallet);
         spin1.succeed(`Wallet: ${formatAddress(wallet.publicKey.toString())}`);
 
-        // Get quote
+        const connection = getConnection();
+        const priorityFee = parseInt(options.priorityFee, 10);
+
+        // Get quote first to show expected output
         const spin2 = spinner('Getting quote...');
         spin2.start();
-        const quote = await mockGetQuote(SOL_MINT, tokenMint, amount, slippageBps);
+        const quote = await getBestQuote(connection, {
+          inputMint: new PublicKey(SOL_MINT),
+          outputMint: new PublicKey(tokenMint),
+          amount: amount * LAMPORTS_PER_SOL,
+          slippageBps,
+        });
         spin2.succeed('Quote received');
 
         console.log();
@@ -311,14 +234,22 @@ export function registerTradeCommands(program: Command): void {
           return;
         }
 
-        // Execute swap
+        // Execute swap (will fetch fresh quote internally)
         newline();
         const spin3 = spinner('Executing swap...');
         spin3.start();
 
-        // TODO: Replace with actual trading module call
-        // const result = await executeSwap(connection, { wallet, quote, priorityFee: parseInt(options.priorityFee) });
-        const result = await mockExecuteSwap(wallet, quote);
+        const result = await executeSwap(
+          connection,
+          wallet,
+          {
+            inputMint: new PublicKey(SOL_MINT),
+            outputMint: new PublicKey(tokenMint),
+            amount: amount * LAMPORTS_PER_SOL,
+            slippageBps,
+          },
+          priorityFee
+        );
 
         spin3.succeed('Swap executed!');
 
@@ -384,10 +315,18 @@ export function registerTradeCommands(program: Command): void {
         const wallet = await loadWallet(options.wallet);
         spin1.succeed(`Wallet: ${formatAddress(wallet.publicKey.toString())}`);
 
-        // Get quote
+        const connection = getConnection();
+        const priorityFee = parseInt(options.priorityFee, 10);
+
+        // Get quote first to show expected output
         const spin2 = spinner('Getting quote...');
         spin2.start();
-        const quote = await mockGetQuote(tokenMint, SOL_MINT, amount, slippageBps);
+        const quote = await getBestQuote(connection, {
+          inputMint: new PublicKey(tokenMint),
+          outputMint: new PublicKey(SOL_MINT),
+          amount,
+          slippageBps,
+        });
         spin2.succeed('Quote received');
 
         console.log();
@@ -403,13 +342,22 @@ export function registerTradeCommands(program: Command): void {
           return;
         }
 
-        // Execute swap
+        // Execute swap (will fetch fresh quote internally)
         newline();
         const spin3 = spinner('Executing swap...');
         spin3.start();
 
-        // TODO: Replace with actual trading module call
-        const result = await mockExecuteSwap(wallet, quote);
+        const result = await executeSwap(
+          connection,
+          wallet,
+          {
+            inputMint: new PublicKey(tokenMint),
+            outputMint: new PublicKey(SOL_MINT),
+            amount,
+            slippageBps,
+          },
+          priorityFee
+        );
 
         spin3.succeed('Swap executed!');
 
